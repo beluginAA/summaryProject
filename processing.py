@@ -23,18 +23,28 @@ class Preproccessing:
                 )
         self.excelRoot = excelRoot
 
-    def to_database(self, databaseName:str) -> pd.DataFrame :
-        Preproccessing.preLogger.info('Trying to connect to a database.')
+    def to_database(self, firstdatabase:str, secondDatabase:str = '', moreThanOneTables:bool = False) -> pd.DataFrame :
+        Preproccessing.preLogger.info('Trying to get the data from database.')
         try:
             with pyodbc.connect(self.connStr) as cnxn:
-                query = f'SELECT * FROM [{databaseName}]'
-                msDatabase = pd.read_sql(query, cnxn)
+                if moreThanOneTables:
+                    rdDatabaseQuery = f'''SELECT * FROM [{firstdatabase}]'''
+                    docDatabaseQuery = f'''SELECT * FROM [{secondDatabase}]'''
+                    rdDatabase = pd.read_sql(rdDatabaseQuery, cnxn)
+                    docDatabase = pd.read_sql(docDatabaseQuery, cnxn)
+                else:
+                    query = f'SELECT * FROM [{firstdatabase}]'
+                    msDatabase = pd.read_sql(query, cnxn)
         except Exception as e:
-            Preproccessing.preLogger.error(f"An error occurred while connecting to the database {databaseName}: {e}")
+            Preproccessing.preLogger.error(f"An error occurred while reading the data: {e}")
         else:
-            Preproccessing.preLogger.info(f'--The connection to the database {databaseName} was successful.--')
-            msDatabase.columns = columns.base_columns
-            return msDatabase
+            Preproccessing.preLogger.info('Data from database received successfully.')
+            if moreThanOneTables:
+                return rdDatabase, docDatabase
+            else:
+                msDatabase.columns = columns.base_columns
+                return msDatabase
+    
     
     def to_excel(self) -> pd.DataFrame:
 
@@ -52,7 +62,7 @@ class Preproccessing:
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while retrieving data from Excel: {e}")
         else:
-            Preproccessing.preLogger.info('--Data from excel received successfully.--')
+            Preproccessing.preLogger.info('Data from excel received successfully.')
             return excelDatabase
         
 
@@ -62,30 +72,32 @@ class PostProcessing:
     postLogger = logger.bind(name = 'postLogger').opt(colors = True)
     postLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
-    def __init__(self, databaseRoot:str):
+    def __init__(self, databaseRoot:str, databaseName:str):
         self.connStr = (
                 r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
                 fr'DBQ={databaseRoot};'
                 )
+        self.databaseName = databaseName
         self.isSuccessDeleteTable = False
         self.isSuccessCreateTable = False
+        self.isSuccesInsertDataIntoTable = False
 
-    def delete_table(self, databaseName:str) -> None:
-        PostProcessing.postLogger.info('Trying to delete an old table.')
+    def delete_table(self) -> None:
+        PostProcessing.postLogger.info('  Trying to delete an old table.')
         try:
             with pyodbc.connect(self.connStr) as connection:
                 cursor = connection.cursor()
-                cursor.execute(f"DROP TABLE [{databaseName}]")
+                cursor.execute(f"DROP TABLE [{self.databaseName}]")
                 cursor.commit()
         except Exception as e:
-            PostProcessing.postLogger.error(f"An error occurred while deleting the table {databaseName}: {e}")
+            PostProcessing.postLogger.error(f"An error occurred while deleting the table {self.databaseName}: {e}")
         else:
-            PostProcessing.postLogger.info(f'--An old table {databaseName} has been successfully deleted.--')
+            PostProcessing.postLogger.info(f'  An old table {self.databaseName} has been successfully deleted.')
             self.isSuccessDeleteTable = True
     
-    def create_table(self, databaseName:str) -> None:
-        PostProcessing.postLogger.info('Trying to create a new table.')
-        createTableQuery = f'''CREATE TABLE [{databaseName}] ([Система] VARCHAR(200), 
+    def create_table(self) -> None:
+        PostProcessing.postLogger.info('  Trying to create a new table.')
+        createTableQuery = f'''CREATE TABLE [{self.databaseName}] ([Система] VARCHAR(200), 
                                 [Наименование] VARCHAR(200),
                                 [Код] VARCHAR(200),
                                 [Тип] VARCHAR(200),
@@ -111,19 +123,19 @@ class PostProcessing:
                 cursor.execute(createTableQuery)
                 cursor.commit()
         except Exception as e:
-            PostProcessing.postLogger.error(f"An error occurred while creating the table {databaseName}: {e}")
+            PostProcessing.postLogger.error(f"An error occurred while creating the table {self.databaseName}: {e}")
         else:
-            PostProcessing.postLogger.info(f'--An old table {databaseName} has been successfully created.--')
+            PostProcessing.postLogger.info(f'  An old table {self.databaseName} has been successfully created.')
             self.isSuccessCreateTable = True
     
-    def insert_into_table(self, databaseName:str, dataframe:pd.DataFrame) -> None:
-        PostProcessing.postLogger.info('Trying to insert new data into new table.')
+    def insert_into_table(self, dataframe:pd.DataFrame) -> bool:
+        PostProcessing.postLogger.info('  Trying to insert new data into new table.')
         if self.isSuccessCreateTable and self.isSuccessDeleteTable:
             try:
                 with pyodbc.connect(self.connStr) as connection:
                     cursor = connection.cursor()
                     for row in dataframe.itertuples(index=False):
-                        insertQuery = f'''INSERT INTO [{databaseName}] ([Система], [Наименование], [Код], 
+                        insertQuery = f'''INSERT INTO [{self.databaseName}] ([Система], [Наименование], [Код], 
                                                             [Тип], [Пакет], [Шифр], 
                                                             [Итог_статус], [Ревизия], [Рев_статус], 
                                                             [Дата_план], [Дата_граф], [Рев_дата], 
@@ -133,9 +145,11 @@ class PostProcessing:
                         cursor.execute(insertQuery)
                     cursor.commit()
             except Exception as e:
-                PostProcessing.postLogger.error(f"An error occurred while inserting the data into table {databaseName}: {e}")
+                PostProcessing.postLogger.error(f"An error occurred while inserting the data into table {self.databaseName}: {e}")
             else:
-                PostProcessing.postLogger.info(f'--Data was successfully added to the table {databaseName}.--')
+                PostProcessing.postLogger.info(f'  Data was successfully added to the table {self.databaseName}.')
+                self.isSuccesInsertDataIntoTable = True
+        return self.isSuccesInsertDataIntoTable
 
 
 
@@ -149,7 +163,7 @@ class ResultFiles:
         self.outputResultFileName = 'result' + str(datetime.now().isoformat(timespec='minutes')).replace(':', '_')
     
     def to_logfile(self, dataframe:pd.DataFrame, header:str) -> None:
-        ResultFiles.resultFileLogger.info('Trying to write data to log-file.')
+        ResultFiles.resultFileLogger.info('  Trying to write data to log-file.')
 
         try:
             maxLenRow = [max(dataframe[row].apply(lambda x: len(str(x)) if x else 0)) for row in dataframe.columns]
@@ -172,10 +186,10 @@ class ResultFiles:
         except Exception as e:
             ResultFiles.resultFileLogger.error(f"An error occurred while writing data to log-file: {e}")
         else:
-            ResultFiles.resultFileLogger.info('--Writing data to log-file was successful.--')
+            ResultFiles.resultFileLogger.info('  Writing data to log-file was successful.--')
     
     def to_resultfile(self, dataframe:pd.DataFrame) -> None:
-        ResultFiles.resultFileLogger.info('Trying to write the final data to an excel file.')
+        ResultFiles.resultFileLogger.info('  Trying to write the final data to an excel file.')
 
         comfRen = input('Use standard file name (y/n): ')
         while comfRen not in 'YyNn':
@@ -198,4 +212,4 @@ class ResultFiles:
         except Exception as e:
             ResultFiles.resultFileLogger.error(f"An error occurred while writing the final data to an excel file: {e}")
         else:
-            ResultFiles.resultFileLogger.info('Writing data to excel file was successful.')
+            ResultFiles.resultFileLogger.info('  Writing data to excel file was successful.')
