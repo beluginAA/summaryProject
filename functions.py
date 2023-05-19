@@ -1,4 +1,8 @@
+import sys
+import columns
 import pandas as pd
+
+from loguru import logger
 
 
 class Functions:
@@ -76,7 +80,101 @@ class Functions:
                 return '-'
     
 
-    class Doc:
+    class Documentation:
+
+        def prepare_missed_rows(docDf:pd.DataFrame, rdDf:pd.DataFrame) -> pd.DataFrame:
+
+            logger.remove()
+            missedRowsLogger = logger.bind(name = 'missed_rows_logger').opt(colors = True)
+            missedRowsLogger.add(sink = sys.stdout, format =  "<blue> {time:HH:mm:ss} </blue> | {message}", level = "INFO", colorize = True)
+
+            missedRowsLogger.info("Finding information with missing data")
+            cipherDf = pd.merge(docDf, rdDf,
+                                    how = 'outer',
+                                    on = 'Шифр',
+                                    suffixes=['', '_new'],
+                                    indicator = True)
+            
+            pathDf = cipherDf[cipherDf['_merge'] == 'right_only'][columns.Documentation.pathDfColumns]
+            pathDf.columns = columns.Documentation.missedColumnsNew
+
+            cipherCodeDf = pd.merge(docDf, pathDf,
+                                how = 'outer',
+                                left_on = 'Шифр',
+                                right_on = 'Код',
+                                suffixes=['', '_new'],
+                                indicator=True)
+
+            missedRows = cipherCodeDf[cipherCodeDf['_merge'] == 'right_only'][columns.Documentation.missedColumns]
+            missedRows = missedRows.loc[missedRows['Система_new'].isin(list(set(docDf['Система'])))]
+            missedRows = missedRows.dropna(subset = ['Система_new'])
+            missedRows.columns = columns.Documentation.missedColumnsNew
+            missedRowsLogger.info('Missing value search finished')
+            return missedRows
+
+        def prepare_data_for_logfile(cipherDf:pd.DataFrame, cipherCodeDf:pd.DataFrame) -> pd.DataFrame:
+
+            logger.remove()
+            logFileLogger = logger.bind(name = 'log_file_logger').opt(colors = True)
+            logFileLogger.add(sink = sys.stdout, format =  "<red> {time:HH:mm:ss} </red> | {message}", level = "DEBUG")
+            
+            logFileLogger.info('Preparing data for log-file')
+
+            def change_type_new(df:pd.DataFrame) -> str:
+                if pd.isna(df['Тип'])  and ~pd.isna(df['Тип_new']):
+                    return f'Смена типа c на {df["Тип_new"]}'
+                else:
+                    return df['Тип'] 
+            
+            def change_status_new(df:pd.DataFrame) -> str:
+                if pd.isna(df['Итог_статус']):
+                    return 'Отсутствует'
+                elif 'ВК+' in df['Итог_статус'] or 'Выдан в производство' in df['Итог_статус']:
+                    return 'Утвержден'
+                else:
+                    return 'На согласовании'
+                
+            def change_columns(df:pd.DataFrame, column:str) -> str:
+                if column[0] != f'{column[1]}_new':
+                    if df[column[0]] == df[column[1]]:
+                        return '-'
+                    else:
+                        if df[column[0]] is None and df[column[1]] in [None, '']:
+                            return '-'
+                        elif df[column[0]] == None:
+                            return f'Смена {column[0].lower()} c на {df[column[1]]}'
+                        else:
+                            return f'Смена {column[0].lower()} c {df[column[0]]} на {df[column[1]]}'
+                else:
+                    if df[column[0]] == df[column[1]]:
+                        return '-'
+                    else:
+                        return f'Смена {column[0].lower()} c {df[column[0]]} на {df[column[1]]}' 
+            
+            def change_code_new(df:pd.DataFrame, column:str) -> str:
+                if df['Шифр_new'] != '':
+                    return f'Смена шифра c {df[column[0]]} на {df[column[1]]}'
+                else:
+                    return '-'
+
+            cipherDf['Тип'] = cipherDf.apply(change_type_new, axis = 1)
+            cipherCodeDf['Тип'] = cipherCodeDf.apply(change_type_new, axis = 1)
+            cipherDf['Итог_статус'] = cipherDf.apply(change_status_new, axis = 1)
+            cipherCodeDf['Итог_статус'] = cipherCodeDf.apply(change_status_new, axis = 1)
+
+            for column in columns.Documentation.changedColumns:
+                if 'Код' not in column:
+                    cipherDf[column[0]] = cipherDf.apply(lambda row: change_columns(row, column), axis=1)
+                    cipherCodeDf[column[0]] = cipherCodeDf.apply(lambda row: change_columns(row, column), axis=1)
+                else:
+                    cipherDf['Шифр'] = '-'
+                    cipherCodeDf['Шифр'] = cipherCodeDf.apply(lambda row: change_code_new(row, column), axis = 1)
+            logDf = pd.concat([cipherDf[list(columns.Documentation.logFileColumns)], cipherCodeDf[list(columns.Documentation.logFileColumns)]])
+            logDf = logDf.reset_index()[list(columns.Documentation.logFileColumns)]
+
+            logFileLogger.info('Log-file ready')
+            return logDf
+
 
         def change_code(self, df:pd.DataFrame) -> str:
             if df['Шифр_new'] != '':
@@ -118,3 +216,5 @@ class Functions:
                 return 'Выложен'
             else:
                 return 'Не выложен'
+
+

@@ -17,7 +17,7 @@ warnings.simplefilter(action='ignore', category=(FutureWarning, UserWarning))
 databaseRoot = askopenfilename(title='Select database', filetypes=[('*.mdb', '*.accdb')]).replace('/', '\\')
 excelRoot = askopenfilename(title="Select file for compare", filetypes=[("Excel Files", "*.xlsx"), ("Excel Binary Workbook", "*.xlsb")])
 
-isSuccessUpdatedRD = False
+isSuccessUpdatedRD = True
 isSuccessUpdatedDocumentation = False
 isSuccessUpdatedStatus = False
 
@@ -28,135 +28,248 @@ class RD:
     loggerRD.add(sink = sys.stdout, format = "<green>{time:HH:mm:ss}</green> | {message}", level = 'INFO')
 
     def __init__(self):
+        RD.loggerRD.info('Start working on RD.')
         self.databaseName = 'РД'
         connect = Preproccessing(databaseRoot, excelRoot)
         self.functions = Functions.RD()
         self.result = ResultFiles()
         self.msDatabase = connect.to_database(self.databaseName)
         self.excelDatabase = connect.to_excel()
+        self.columns = columns.RD()
         self.changedColumns = self.msDatabase.columns
     
-    def updateRD(self) -> None:
-        RD.loggerRD.info('Working on RD:')   
-        self._clearingDataframes()
-        excelDatabaseCopy, msDatabaseCopy = self._findingMissingValues()
-        self._mergingTwoDataFrames(excelDatabaseCopy, msDatabaseCopy)
-        self._findingMissedRows(self.excelDatabase)
-        rdKksDfCopy, rdNameDfCopy = self._changingDataframes()
-        self._preparingChangedDataForLogFile(rdKksDfCopy, rdNameDfCopy)
-        summaryDf = self._preparingFinalFiles()
-        self._makingChangesToDatabase(summaryDf)
+    def done(self) -> None: 
+        self._clearingDataframes(self)
+        self._findingMissingValues(self)
+        self._mergingTwoDataFrames(self)
+        self._findingMissedRows(self)
+        self._changingDataframes(self)
+        self._preparingChangedDataForLogFile(self)
+        summaryDf = self._preparingFinalFiles(self)
+        self._makingChangesToDatabase(self, summaryDf)
 
     @staticmethod
-    def _clearingDataframes() -> list[pd.DataFrame]:
+    def _clearingDataframes(self) -> None:
         RD.loggerRD.info('  Clearing dataframes') 
-        RD.excelDatabase = RD.excelDatabase.dropna(subset=['Коды работ по выпуску РД'])
-        RD.excelDatabase['Разработчики РД (актуальные)'] = RD.excelDatabase.apply(RD.functions.changing_developer, axis = 1)
-        RD.excelDatabase = RD.excelDatabase[~RD.excelDatabase['Коды работ по выпуску РД'].str.contains('\.C\.', regex=False)]
-        RD.excelDatabase['Объект'] = RD.excelDatabase['Объект'].apply(lambda row: row[ : row.find(' ')])
-        RD.excelDatabase['WBS'] = RD.excelDatabase['WBS'].apply(RD.functions.changing_wbs)
-        RD.excelDatabase['Код KKS документа'] = RD.excelDatabase['Код KKS документа'].astype(str)
-        RD.excelDatabase = RD.excelDatabase.loc[~RD.excelDatabase['Код KKS документа'].str.contains('\.KZ\.|\.EK\.|\.TZ\.|\.KM\.|\.GR\.')]
-        for column in columns.convert_columns[:4]:
-            RD.excelDatabase[column] = RD.excelDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
-            RD.msDatabase[column] = RD.msDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
+        self.excelDatabase = self.excelDatabase.dropna(subset=['Коды работ по выпуску РД'])
+        self.excelDatabase['Разработчики РД (актуальные)'] = self.excelDatabase.apply(self.functions.changing_developer, axis = 1)
+        self.excelDatabase = self.excelDatabase[~self.excelDatabase['Коды работ по выпуску РД'].str.contains('\.C\.', regex=False)]
+        self.excelDatabase['Объект'] = self.excelDatabase['Объект'].apply(lambda row: row[ : row.find(' ')])
+        self.excelDatabase['WBS'] = self.excelDatabase['WBS'].apply(self.functions.changing_wbs)
+        self.excelDatabase['Код KKS документа'] = self.excelDatabase['Код KKS документа'].astype(str)
+        self.excelDatabase = self.excelDatabase.loc[~self.excelDatabase['Код KKS документа'].str.contains('\.KZ\.|\.EK\.|\.TZ\.|\.KM\.|\.GR\.')]
+        for column in self.columns.convert_columns[:4]:
+            self.excelDatabase[column] = self.excelDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
+            self.msDatabase[column] = self.msDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
 
     @staticmethod
-    def _findingMissingValues() -> list[pd.DataFrame]:
+    def _findingMissingValues(self) -> None:
         RD.loggerRD.info('  Finding missing values ​​in a report.')
-        msDatabaseCopy = RD.msDatabase.copy()
-        excelDatabaseCopy = RD.excelDatabase.copy()
-        msDbJE =RD.msDatabase.copy()
+        self.msDatabaseCopy = self.msDatabase.copy()
+        self.excelDatabaseCopy = self.excelDatabase.copy()
+        msDbJE =self.msDatabase.copy()
         msDbJE = msDbJE[['Коды работ по выпуску РД']]
-        excelDbJE = RD.excelDatabase.copy()
+        excelDbJE = self.excelDatabase.copy()
         excelDbJE = excelDbJE[excelDbJE['Коды работ по выпуску РД'].str.contains('\.J\.|\.E\.')].reset_index()[['Коды работ по выпуску РД']]
-        excelDbJE = excelDbJE.apply(lambda df: RD.functions.missed_codes_excel(df, msDbJE), axis = 1)
-        # RD.result.to_logfile(excelDbJE.dropna().reset_index(drop = True), 'Пропущенные значения, которые есть в отчете, но нет в РД (J, E)')
-        return excelDatabaseCopy, msDatabaseCopy
+        excelDbJE = excelDbJE.apply(lambda df: self.functions.missed_codes_excel(df, msDbJE), axis = 1)
+        # self.result.to_logfile(excelDbJE.dropna().reset_index(drop = True), 'Пропущенные значения, которые есть в отчете, но нет в РД (J, E)')
     
     @staticmethod
-    def _mergingTwoDataFrames(excelDbCopy:pd.DataFrame, msDbCopy:pd.DataFrame):
+    def _mergingTwoDataFrames(self) -> None:
         RD.loggerRD.info('  Merging two dataframes')
-        RD.rdKksDf = (pd.merge(excelDbCopy, msDbCopy, #m_df_1
+        self.rdKksDf = (pd.merge(self.excelDatabaseCopy, self.msDatabaseCopy, #m_df_1
                                 how='outer',
                                 on=['Коды работ по выпуску РД', 'Код KKS документа'],
                                 suffixes=['', '_new'], 
                                 indicator=True))
-        dfPath = RD.rdKksDf[RD.rdKksDf['_merge'] == 'right_only'][columns.mdf1_columns] #tmp_df
-        dfPath.columns = columns.new_columns
+        dfPath = self.rdKksDf[self.rdKksDf['_merge'] == 'right_only'][self.columns.mdf1_columns] #tmp_df
+        dfPath.columns = self.columns.new_columns
 
-        RD.rdNameDf = (dfPath.iloc[:, :-1].merge(excelDbCopy, # m_df_2
+        self.rdNameDf = (dfPath.iloc[:, :-1].merge(self.excelDatabaseCopy, # m_df_2
                                 how='outer',
                                 on=['Коды работ по выпуску РД', 'Наименование объекта/комплекта РД'],
                                 suffixes=['', '_new'],
                                 indicator=True))
-        RD.rdKksDf['Статус текущей ревизии_new'] = RD.rdKksDf.apply(RD.functions.changing_status, axis = 1)
-        RD.rdNameDf['Статус текущей ревизии_new'] = RD.rdNameDf.apply(RD.functions.changing_status, axis = 1)
+        self.rdKksDf['Статус текущей ревизии_new'] = self.rdKksDf.apply(self.functions.changing_status, axis = 1)
+        self.rdNameDf['Статус текущей ревизии_new'] = self.rdNameDf.apply(self.functions.changing_status, axis = 1)
     
     @staticmethod
-    def _findingMissedRows(excelDb:pd.DataFrame) -> None:
+    def _findingMissedRows(self) -> None:
         RD.loggerRD.info('  Finding missed rows.')
-        missedRows = RD.rdNameDf[RD.rdNameDf['_merge'] == 'left_only'].reset_index()[columns.mdf2_columns]
-        missedRows.columns = columns.new_columns
+        missedRows = self.rdNameDf[self.rdNameDf['_merge'] == 'left_only'].reset_index()[self.columns.mdf2_columns]
+        missedRows.columns = self.columns.new_columns
         missedJE = missedRows[missedRows['Коды работ по выпуску РД'].str.contains('\.J\.|\.E\.')].reset_index()[['Коды работ по выпуску РД', 'Наименование объекта/комплекта РД']]
-        missedJE = missedJE.apply(lambda df: RD.functions.missed_codes(df, excelDb), axis = 1)
+        missedJE = missedJE.apply(lambda df: self.functions.missed_codes(df, self.excelDatabase), axis = 1)
         missedJE = missedJE.dropna().reset_index(drop = True)
         # RD.result.to_logfile(missedJE, 'Пропущенные значения, которые есть в РД, но нет в отчете (J, E)')
     
     @staticmethod
-    def _changingDataframes() -> list[pd.DataFrame]:
+    def _changingDataframes(self) -> None:
         RD.loggerRD.info('  Changing dataframes')
-        RD.rdKksDf = RD.rdKksDf[RD.rdKksDf['_merge'] == 'both']
-        RD.rdNameDf = RD.rdNameDf[RD.rdNameDf['_merge'] == 'both']
-        RD.rdKksDf['Наименование объекта/комплекта РД'] = RD.rdKksDf.apply(lambda row: RD.functions.changing_name(row), axis = 1)
-        RD.rdNameDf['Код KKS документа'] = RD.rdNameDf.apply(lambda row: RD.functions.changing_code(row), axis = 1)
-        for col in columns.clmns:
-            RD.rdKksDf[col] = RD.rdKksDf.apply(lambda df: RD.functions.changing_data(df, col), axis = 1)
-            RD.rdNameDf[col] = RD.rdNameDf.apply(lambda df: RD.functions.changing_data(df, col), axis = 1)
-        rdKksDfCopy = RD.rdKksDf.copy()
-        rdNameDfCopy = RD.rdNameDf.copy()
-        RD.rdKksDf = RD.rdKksDf[columns.mdf1_columns]
-        RD.rdKksDf.columns = columns.new_columns
-        RD.rdNameDf = RD.rdNameDf[columns.mdf2_columns]
-        RD.rdNameDf.columns = columns.new_columns
-        return rdKksDfCopy, rdNameDfCopy
+        self.rdKksDf = self.rdKksDf[self.rdKksDf['_merge'] == 'both']
+        self.rdNameDf = self.rdNameDf[self.rdNameDf['_merge'] == 'both']
+        self.rdKksDf['Наименование объекта/комплекта РД'] = self.rdKksDf.apply(lambda row: self.functions.changing_name(row), axis = 1)
+        self.rdNameDf['Код KKS документа'] = self.rdNameDf.apply(lambda row: self.functions.changing_code(row), axis = 1)
+        for col in self.columns.clmns:
+            self.rdKksDf[col] = self.rdKksDf.apply(lambda df: self.functions.changing_data(df, col), axis = 1)
+            self.rdNameDf[col] = self.rdNameDf.apply(lambda df: self.functions.changing_data(df, col), axis = 1)
+        self.rdKksDfCopy = self.rdKksDf.copy()
+        self.rdNameDfCopy = self.rdNameDf.copy()
+        self.rdKksDf = self.rdKksDf[self.columns.mdf1_columns]
+        self.rdKksDf.columns = self.columns.new_columns
+        self.rdNameDf = self.rdNameDf[self.columns.mdf2_columns]
+        self.rdNameDf.columns = self.columns.new_columns
 
     @staticmethod
-    def _preparingChangedDataForLogFile(rdKksDfCopy:pd.DataFrame, rdNameDfCopy:pd.DataFrame) -> None:
+    def _preparingChangedDataForLogFile(self) -> None:
         RD.loggerRD.info('  Preparing changed data for log-file.')
-        rdNameLogFile = rdNameDfCopy[columns.logFileColumns]
-        rdKksLogFile = rdKksDfCopy[columns.logFileColumns]
+        rdNameLogFile = self.rdNameDfCopy[self.columns.logFileColumns]
+        rdKksLogFile = self.rdKksDfCopy[self.columns.logFileColumns]
         rdKks = rdKksLogFile.copy()
         rdName = rdNameLogFile.copy()
-        rdName['Код KKS документа'] = rdName['Код KKS документа'].apply(RD.functions.find_row)
+        rdName['Код KKS документа'] = rdName['Код KKS документа'].apply(self.functions.find_row)
         changedLogfile = pd.concat([rdName, rdKks])
-        RD.resultThread = threading.Thread(name = 'resultThread', target = RD.result.to_logfile, args = (changedLogfile.reset_index(drop = True), 'Измененные значения',))
-        RD.resultThread.start()
+        self.resultThread = threading.Thread(name = 'resultThread', target = self.result.to_logfile, args = (changedLogfile.reset_index(drop = True), 'Измененные значения',))
+        self.resultThread.start()
 
     @staticmethod
-    def _preparingFinalFiles() -> pd.DataFrame:
+    def _preparingFinalFiles(self) -> pd.DataFrame:
         RD.loggerRD.info('  Preparing the final files.')
-        summaryDf = pd.concat([RD.rdKksDf, RD.rdNameDf])
-        summaryDf = summaryDf[columns.base_columns]
+        summaryDf = pd.concat([self.rdKksDf, self.rdNameDf])
+        summaryDf = summaryDf[self.columns.base_columns]
         summaryDf = summaryDf.reset_index(drop = True)
         resultExcelDf = summaryDf.copy()
         resultExcelDf['Объект'] = resultExcelDf['Объект'].apply(lambda row: resultExcelDf['Коды работ по выпуску РД'].str.slice(0, 5) if pd.isna(row) else row)
         resultExcelDf['WBS'] = resultExcelDf['WBS'].apply(lambda row: row if ~pd.isna(row) else resultExcelDf['Коды работ по выпуску РД'].apply(lambda row: row[6 : row.find('.', 6)]))
-        resultExcelDf.columns = RD.changedColumns
+        resultExcelDf.columns = self.changedColumns
         for col in resultExcelDf.columns:
-            resultExcelDf[col] = resultExcelDf.apply(lambda df:RD.functions.finding_empty_rows(df, col), axis = 1)
-            summaryDf[col] = summaryDf.apply(lambda df: RD.functions.finding_empty_rows(df, col), axis = 1)
-        RD.resultThread.join()
-        RD.result.to_resultfile(resultExcelDf)
+            resultExcelDf[col] = resultExcelDf.apply(lambda df:self.functions.finding_empty_rows(df, col), axis = 1)
+            summaryDf[col] = summaryDf.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
+        self.resultThread.join()
+        self.result.to_resultfile(resultExcelDf)
         return summaryDf
 
     @staticmethod
-    def _makingChangesToDatabase(summaryDf:pd.DataFrame) -> None:
+    def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         RD.loggerRD.info('  Making changes to the database.')
-        step = PostProcessing(databaseRoot, RD.databaseName)
-        step.delete_table()
-        step.create_table()
-        if step.insert_into_table(summaryDf):
-            isSuccessUpdatedRD = True
+        step = PostProcessing(databaseRoot, self.databaseName)
+        # step.delete_table()
+        # step.create_table()
+        # if step.insert_into_table(summaryDf):
+        #     isSuccessUpdatedRD = True
+
+
+class Documentation:
+    
+    logger.remove()
+    DocumentationLogger = logger.bind(name = 'DocumentationLogger').opt(colors = True)
+    DocumentationLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
+
+    def __init__(self):
+        Documentation.DocumentationLogger.info('Working on Documentation.')
+        self.databaseName = 'Документация'
+        connect = Preproccessing(databaseRoot, excelRoot)
+        self.rdDatabase, self.docDatabase = connect.to_database('РД', self.databaseName, True)
+        self.functions = Functions.Documentation()
+        self.result = ResultFiles()
+        self.columns = columns.Documentation()
+    
+    def done(self) -> None:
+        if isSuccessUpdatedRD:
+            self._clearingDataframes(self)
+            self._makingCopyOfOriginalDataframes(self)
+            self._mergingTwoDataframes(self)
+            self._makingCopyOfAlreadyJoinedDataframes(self)
+            self._preparingMergingDataframesForSummaryDataframe(self)
+            summaryDf = self._creatingSummaryTable(self)
+            summaryDf = self._preparingFinalFileAndWritingToDatabase(self, summaryDf)
+            self._makingChangedToDatabase(self, summaryDf)
+            Documentation.DocumentationLogger.info('  Database updated.')
+
+    @staticmethod
+    def _clearingDataframes(self) -> None:
+        Documentation.DocumentationLogger.info('  Clearing dataframes.')
+        self.rdDatabase = self.rdDatabase[list(self.columns.rdColumns)]
+        for col in self.columns.rdColumns:
+            self.rdDatabase[col] = self.rdDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
+        for col in self.columns.doc_columns:
+            self.docDatabase[col] = self.docDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
+        self.rdDatabase['Ревизия'] = self.rdDatabase['Ревизия'].apply(lambda row: None if row == '' else row)
+        self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if row in ['в производстве', 'В производстве', None] else datetime.strptime(row, '%d.%m.%Y').date().strftime('%d-%m-%Y'))
+        self.empty_rows_df = self.docDatabase[(pd.isna(self.docDatabase['Шифр'])) | (self.docDatabase['Вид'] != 'Проектная документация') | (self.docDatabase['Разработчик'] != 'Атомэнергопроект')]
+        self.docDatabase = self.docDatabase[(~pd.isna(self.docDatabase['Шифр'])) & (self.docDatabase['Вид'] == 'Проектная документация') & (self.docDatabase['Разработчик'] == 'Атомэнергопроект')]
+
+    @staticmethod
+    def _makingCopyOfOriginalDataframes(self):
+        Documentation.DocumentationLogger.info('  Making copy of original dataframes.')
+        docDatabaseCopy = self.docDatabase.copy()
+        rdDatabaseCopy = self.rdDatabase.copy()
+        missed = self.functions.prepare_missed_rows(docDatabaseCopy, rdDatabaseCopy)
+        self.result.to_resultfile(missed)
+
+    @staticmethod
+    def _mergingTwoDataframes(self) -> None:
+        Documentation.DocumentationLogger.info('  Merging two dataframes.')
+        self.cipherDf = pd.merge(self.docDatabase, self.rdDatabase,
+                                how = 'left',
+                                on = 'Шифр',
+                                suffixes=['', '_new'],
+                                indicator = True)
+        leftOnly = self.cipherDf[self.cipherDf['_merge'] == 'left_only'][self.docDatabase.columns]
+        self.cipherCodeDf = pd.merge(leftOnly, self.rdDatabase,
+                            how = 'left',
+                            left_on = 'Шифр',
+                            right_on = 'Код',
+                            suffixes=['', '_new'],
+                            indicator=True)
+
+    @staticmethod
+    def _makingCopyOfAlreadyJoinedDataframes(self) -> None:
+        Documentation.DocumentationLogger.info('  Making copies of already joined dataframes.')
+        self.cipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
+        cipherCodeDfCopy = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
+        logDf = self.functions.prepare_data_for_logfile(self.cipherDf, cipherCodeDfCopy)
+        self.result.to_logfile(logDf, 'Итоговые значения')
+
+    @staticmethod
+    def _preparingMergingDataframesForSummaryDataframe(self) -> None:
+        Documentation.DocumentationLogger.info('  Preparing merging dataframes for summary dataframe.')
+        self.resultCipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
+        self.resultCipherCodeDf = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
+        self.resultCipherDf['Тип'] = self.resultCipherDf.apply(self.functions.change_type, axis = 1)
+        self.resultCipherCodeDf['Тип'] = self.resultCipherCodeDf.apply(self.functions.change_type, axis = 1)
+
+    @staticmethod
+    def _creatingSummaryTable(self) -> pd.DataFrame:
+        Documentation.DocumentationLogger.info('  Creating a summary table.')
+        partDf = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'left_only'][self.docDatabase.columns]
+        summaryDf = self.resultCipherDf[list(self.columns.CipherDfColumns)]
+        summaryDf.columns = self.docDatabase.columns
+        summaryDf = pd.concat([partDf, summaryDf])
+        partDf = self.resultCipherCodeDf.copy()
+        partDf['Новый шифр'] = partDf.apply(self.functions.change_code, axis = 1)
+        partDf = partDf[list(self.columns.CipherCodeDfColumns)]
+        partDf.columns = self.docDatabase.columns
+        summaryDf = pd.concat([partDf, summaryDf])
+        return summaryDf
+
+    @staticmethod
+    def _preparingFinalFileAndWritingToDatabase(self, summaryDf:pd.DataFrame) -> pd.DataFrame:
+        Documentation.DocumentationLogger.info('  Preparing the final file and writing it to the database.')
+        summaryDf = pd.concat([summaryDf, self.empty_rows_df]).sort_index()
+        summaryDf['Статус'] = summaryDf.apply(self.functions.change_status, axis = 1)
+        for column in self.columns.noneColumns:
+            summaryDf[column] = summaryDf.apply(lambda df: self.functions.change_none(df, column), axis = 1)
+        return summaryDf
+
+    @staticmethod
+    def _makingChangedToDatabase(self, summaryDf:pd.DataFrame) -> None:
+        Documentation.DocumentationLogger.info('  Making changes to the database.')
+        attempt = PostProcessing(databaseRoot, self.databaseName)
+        # attempt.delete_table()
+        # attempt.create_table()
+        # if attempt.insert_into_table(summaryDf):
+        #     isSuccessUpdatedDocumentation = True
+
         
     

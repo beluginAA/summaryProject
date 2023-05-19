@@ -1,13 +1,10 @@
-import sys
+from updatingTables import RD, Documentation
 
-from loguru import logger
-from tkinter.filedialog import askopenfilename
-from updatingTables import RD
 
-mainLogger = logger.bind(name = 'mainLogger').opt(colors = True)
-mainLogger.add(sink = sys.stdout, format ='<green> {time:HH:MM:SS} </green> {message}', level = 'INFO')
+startWorkingOnRD = RD()
+startWorkingOnRD.done()
 
-start = RD()
-start.updateRD()
+startWorkingOnDocumentation = Documentation()
+startWorkingOnDocumentation.done()
 
 

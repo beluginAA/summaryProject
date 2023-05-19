@@ -13,6 +13,7 @@ from datetime import datetime
 
 class Preproccessing:
 
+    logger.remove()
     preLogger = logger.bind(name = 'preLogger').opt(colors = True)
     preLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
@@ -24,7 +25,7 @@ class Preproccessing:
         self.excelRoot = excelRoot
 
     def to_database(self, firstdatabase:str, secondDatabase:str = '', moreThanOneTables:bool = False) -> pd.DataFrame :
-        Preproccessing.preLogger.info('Trying to get the data from database.')
+        Preproccessing.preLogger.info('  Trying to get the data from database.')
         try:
             with pyodbc.connect(self.connStr) as cnxn:
                 if moreThanOneTables:
@@ -38,17 +39,17 @@ class Preproccessing:
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while reading the data: {e}")
         else:
-            Preproccessing.preLogger.info('Data from database received successfully.')
+            Preproccessing.preLogger.info('  Data from database received successfully.')
             if moreThanOneTables:
                 return rdDatabase, docDatabase
             else:
-                msDatabase.columns = columns.base_columns
+                msDatabase.columns = columns.RD().base_columns
                 return msDatabase
     
     
     def to_excel(self) -> pd.DataFrame:
 
-        Preproccessing.preLogger.info('Trying to get the data from excel.')
+        Preproccessing.preLogger.info('  Trying to get the data from excel.')
         try:
             if '.xlsb' in self.excelRoot:
                 with pyxlsb.open_workbook(self.excelRoot) as wb:
@@ -62,7 +63,7 @@ class Preproccessing:
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while retrieving data from Excel: {e}")
         else:
-            Preproccessing.preLogger.info('Data from excel received successfully.')
+            Preproccessing.preLogger.info('  Data from excel received successfully.')
             return excelDatabase
         
 
@@ -97,26 +98,7 @@ class PostProcessing:
     
     def create_table(self) -> None:
         PostProcessing.postLogger.info('  Trying to create a new table.')
-        createTableQuery = f'''CREATE TABLE [{self.databaseName}] ([Система] VARCHAR(200), 
-                                [Наименование] VARCHAR(200),
-                                [Код] VARCHAR(200),
-                                [Тип] VARCHAR(200),
-                                [Пакет] VARCHAR(200),
-                                [Шифр] VARCHAR(200),
-                                [Итог_статус] VARCHAR(200),
-                                [Ревизия] VARCHAR(200), 
-                                [Рев_статус] VARCHAR(200), 
-                                [Дата_план] VARCHAR(200), 
-                                [Дата_граф] VARCHAR(200), 
-                                [Рев_дата] VARCHAR(200), 
-                                [Дата_ожид] VARCHAR(200), 
-                                [Письмо] VARCHAR(200), 
-                                [Источник] VARCHAR(200), 
-                                [Разработчик] VARCHAR(200), 
-                                [Объект] VARCHAR(200), 
-                                [WBS] VARCHAR(200), 
-                                [КС] VARCHAR(200), 
-                                [Примечания] VARCHAR(200))'''
+        createTableQuery = columns.Commands().commands[f'{self.databaseName}CreateQuery']
         try:
             with pyodbc.connect(self.connStr) as connection:
                 cursor = connection.cursor()
@@ -135,13 +117,7 @@ class PostProcessing:
                 with pyodbc.connect(self.connStr) as connection:
                     cursor = connection.cursor()
                     for row in dataframe.itertuples(index=False):
-                        insertQuery = f'''INSERT INTO [{self.databaseName}] ([Система], [Наименование], [Код], 
-                                                            [Тип], [Пакет], [Шифр], 
-                                                            [Итог_статус], [Ревизия], [Рев_статус], 
-                                                            [Дата_план], [Дата_граф], [Рев_дата], 
-                                                            [Дата_ожид], [Письмо], [Источник], 
-                                                            [Разработчик], [Объект], [WBS], 
-                                                            [КС], [Примечания]) VALUES ({",".join(f"'{x}'" for x in row)})'''
+                        insertQuery = columns.Commands().commands[f'{self.databaseName}InsertQuery']
                         cursor.execute(insertQuery)
                     cursor.commit()
             except Exception as e:
