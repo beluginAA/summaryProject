@@ -18,7 +18,7 @@ databaseRoot = askopenfilename(title='Select database', filetypes=[('*.mdb', '*.
 excelRoot = askopenfilename(title="Select file for compare", filetypes=[("Excel Files", "*.xlsx"), ("Excel Binary Workbook", "*.xlsb")])
 
 isSuccessUpdatedRD = True
-isSuccessUpdatedDocumentation = False
+isSuccessUpdatedDocumentation = True
 isSuccessUpdatedStatus = False
 
 class RD:
@@ -28,11 +28,11 @@ class RD:
     loggerRD.add(sink = sys.stdout, format = "<green>{time:HH:mm:ss}</green> | {message}", level = 'INFO')
 
     def __init__(self):
-        RD.loggerRD.info('Start working on RD.')
+        RD.loggerRD.info('Working on RD.')
         self.databaseName = 'РД'
         connect = Preproccessing(databaseRoot, excelRoot)
         self.functions = Functions.RD()
-        self.result = ResultFiles()
+        self.result = ResultFiles(self.databaseName)
         self.msDatabase = connect.to_database(self.databaseName)
         self.excelDatabase = connect.to_excel()
         self.columns = columns.RD()
@@ -162,16 +162,16 @@ class RD:
 class Documentation:
     
     logger.remove()
-    DocumentationLogger = logger.bind(name = 'DocumentationLogger').opt(colors = True)
-    DocumentationLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
+    StatusLogger = logger.bind(name = 'DocumentationLogger').opt(colors = True)
+    StatusLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
     def __init__(self):
-        Documentation.DocumentationLogger.info('Working on Documentation.')
+        Documentation.StatusLogger.info('Working on Documentation.')
         self.databaseName = 'Документация'
         connect = Preproccessing(databaseRoot, excelRoot)
         self.rdDatabase, self.docDatabase = connect.to_database('РД', self.databaseName, True)
         self.functions = Functions.Documentation()
-        self.result = ResultFiles()
+        self.result = ResultFiles(self.databaseName)
         self.columns = columns.Documentation()
     
     def done(self) -> None:
@@ -184,11 +184,11 @@ class Documentation:
             summaryDf = self._creatingSummaryTable(self)
             summaryDf = self._preparingFinalFileAndWritingToDatabase(self, summaryDf)
             self._makingChangedToDatabase(self, summaryDf)
-            Documentation.DocumentationLogger.info('  Database updated.')
+            Documentation.StatusLogger.info('  Database updated.')
 
     @staticmethod
     def _clearingDataframes(self) -> None:
-        Documentation.DocumentationLogger.info('  Clearing dataframes.')
+        Documentation.StatusLogger.info('  Clearing dataframes.')
         self.rdDatabase = self.rdDatabase[list(self.columns.rdColumns)]
         for col in self.columns.rdColumns:
             self.rdDatabase[col] = self.rdDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
@@ -201,7 +201,7 @@ class Documentation:
 
     @staticmethod
     def _makingCopyOfOriginalDataframes(self):
-        Documentation.DocumentationLogger.info('  Making copy of original dataframes.')
+        Documentation.StatusLogger.info('  Making copy of original dataframes.')
         docDatabaseCopy = self.docDatabase.copy()
         rdDatabaseCopy = self.rdDatabase.copy()
         missed = self.functions.prepare_missed_rows(docDatabaseCopy, rdDatabaseCopy)
@@ -209,7 +209,7 @@ class Documentation:
 
     @staticmethod
     def _mergingTwoDataframes(self) -> None:
-        Documentation.DocumentationLogger.info('  Merging two dataframes.')
+        Documentation.StatusLogger.info('  Merging two dataframes.')
         self.cipherDf = pd.merge(self.docDatabase, self.rdDatabase,
                                 how = 'left',
                                 on = 'Шифр',
@@ -225,7 +225,7 @@ class Documentation:
 
     @staticmethod
     def _makingCopyOfAlreadyJoinedDataframes(self) -> None:
-        Documentation.DocumentationLogger.info('  Making copies of already joined dataframes.')
+        Documentation.StatusLogger.info('  Making copies of already joined dataframes.')
         self.cipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
         cipherCodeDfCopy = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
         logDf = self.functions.prepare_data_for_logfile(self.cipherDf, cipherCodeDfCopy)
@@ -233,7 +233,7 @@ class Documentation:
 
     @staticmethod
     def _preparingMergingDataframesForSummaryDataframe(self) -> None:
-        Documentation.DocumentationLogger.info('  Preparing merging dataframes for summary dataframe.')
+        Documentation.StatusLogger.info('  Preparing merging dataframes for summary dataframe.')
         self.resultCipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
         self.resultCipherCodeDf = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
         self.resultCipherDf['Тип'] = self.resultCipherDf.apply(self.functions.change_type, axis = 1)
@@ -241,7 +241,7 @@ class Documentation:
 
     @staticmethod
     def _creatingSummaryTable(self) -> pd.DataFrame:
-        Documentation.DocumentationLogger.info('  Creating a summary table.')
+        Documentation.StatusLogger.info('  Creating a summary table.')
         partDf = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'left_only'][self.docDatabase.columns]
         summaryDf = self.resultCipherDf[list(self.columns.CipherDfColumns)]
         summaryDf.columns = self.docDatabase.columns
@@ -255,7 +255,7 @@ class Documentation:
 
     @staticmethod
     def _preparingFinalFileAndWritingToDatabase(self, summaryDf:pd.DataFrame) -> pd.DataFrame:
-        Documentation.DocumentationLogger.info('  Preparing the final file and writing it to the database.')
+        Documentation.StatusLogger.info('  Preparing the final file and writing it to the database.')
         summaryDf = pd.concat([summaryDf, self.empty_rows_df]).sort_index()
         summaryDf['Статус'] = summaryDf.apply(self.functions.change_status, axis = 1)
         for column in self.columns.noneColumns:
@@ -264,12 +264,70 @@ class Documentation:
 
     @staticmethod
     def _makingChangedToDatabase(self, summaryDf:pd.DataFrame) -> None:
-        Documentation.DocumentationLogger.info('  Making changes to the database.')
+        Documentation.StatusLogger.info('  Making changes to the database.')
         attempt = PostProcessing(databaseRoot, self.databaseName)
         # attempt.delete_table()
         # attempt.create_table()
         # if attempt.insert_into_table(summaryDf):
         #     isSuccessUpdatedDocumentation = True
+
+
+class Status:
+        
+    logger.remove()
+    StatusLogger = logger.bind(name = 'StatusLogger').opt(colors = True)
+    StatusLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
+
+    def __init__(self):
+        Status.StatusLogger.info('Working on Documentation.')
+        self.databaseName = 'Документация'
+        connect = Preproccessing(databaseRoot, excelRoot)
+        self.statusDf, self.docDf = connect.to_database('Переданные_РД', self.databaseName, True)
+        self.functions = Functions.Status()
+        self.result = ResultFiles('Статус')
+    
+    def done(self) -> None:
+        if isSuccessUpdatedRD and isSuccessUpdatedDocumentation:
+            self._preparingDataForMerging(self)
+            self._mergingTwoDataframes(self)
+            summaryDf = self._preparingSummaryDataframe(self)
+            self._makingChangesToDatabase(self, summaryDf)
+            Status.StatusLogger.info('  Database updated.')
+
+
+    @staticmethod
+    def _preparingDataForMerging(self) -> None:
+        Status.StatusLogger.info('  Preparing data for merging.')
+        self.statusDf['Ревизия'] = self.statusDf['Ревизия'].apply(lambda row: row  if pd.isna(row) or row == 0 else f'C0{row}')
+        self.docDf['Ревизия_новая'] = self.docDf['Ревизия'].apply(lambda row: row[:3]  if '(есть только в 1С)' in str(row) else row)
+    
+    @staticmethod
+    def _mergingTwoDataframes(self) -> None:
+        Status.StatusLogger.info('  Merging two databases.')
+        self.mergedDf = pd.merge(self.docDf, self.statusDf,
+                            how = 'outer',
+                            left_on = ['Шифр', 'Ревизия_новая'],
+                            right_on = ['Шифр', 'Ревизия'],
+                            suffixes = ['', '_new'],
+                            indicator = True)
+        self.mergedDf['Сервер'] = self.mergedDf.apply(self.functions.get_status_server, axis = 1)
+
+    @staticmethod
+    def _preparingSummaryDataframe(self) -> pd.DataFrame:
+        Status.StatusLogger.info('  Preparing summary dataframe.')
+        summaryDf = self.mergedDf[self.mergedDf['_merge'].isin(['both', 'left_only'])]
+        summaryDf = summaryDf[self.docDf.columns[:-1]]
+        return summaryDf
+
+    @staticmethod
+    def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
+        Status.StatusLogger.info('  Making changes to the database.')
+        attempt = PostProcessing(databaseRoot, self.databaseName)
+        attempt.delete_table()
+        attempt.create_table()
+        if attempt.insert_into_table(summaryDf):
+            isSuccessUpdatedStatus = True
+
 
         
     

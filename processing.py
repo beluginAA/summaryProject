@@ -97,8 +97,42 @@ class PostProcessing:
             self.isSuccessDeleteTable = True
     
     def create_table(self) -> None:
+
+        commands = {'РДCreateQuery':'''CREATE TABLE [РД] ([Система] VARCHAR(200), 
+                                [Наименование] VARCHAR(200),
+                                [Код] VARCHAR(200),
+                                [Тип] VARCHAR(200),
+                                [Пакет] VARCHAR(200),
+                                [Шифр] VARCHAR(200),
+                                [Итог_статус] VARCHAR(200),
+                                [Ревизия] VARCHAR(200), 
+                                [Рев_статус] VARCHAR(200), 
+                                [Дата_план] VARCHAR(200), 
+                                [Дата_граф] VARCHAR(200), 
+                                [Рев_дата] VARCHAR(200), 
+                                [Дата_ожид] VARCHAR(200), 
+                                [Письмо] VARCHAR(200), 
+                                [Источник] VARCHAR(200), 
+                                [Разработчик] VARCHAR(200), 
+                                [Объект] VARCHAR(200), 
+                                [WBS] VARCHAR(200), 
+                                [КС] VARCHAR(200), 
+                                [Примечания] VARCHAR(200))''',
+        'ДокументацияCreateQuery':'''CREATE TABLE [Документация] ([Система] VARCHAR(200), 
+                                            [Наименование] VARCHAR(200),
+                                            [Шифр] VARCHAR(100),
+                                            [Разработчик] VARCHAR(200),
+                                            [Вид] VARCHAR(100),
+                                            [Тип] VARCHAR(200),
+                                            [Статус] VARCHAR(200),
+                                            [Ревизия] VARCHAR(200), 
+                                            [Дополнения] VARCHAR(200),
+                                            [Срок] VARCHAR(100),
+                                            [Сервер] VARCHAR(200),
+                                            [Обоснование] VARCHAR(200))'''}
+
         PostProcessing.postLogger.info('  Trying to create a new table.')
-        createTableQuery = columns.Commands().commands[f'{self.databaseName}CreateQuery']
+        createTableQuery = commands[f'{self.databaseName}CreateQuery']
         try:
             with pyodbc.connect(self.connStr) as connection:
                 cursor = connection.cursor()
@@ -111,13 +145,29 @@ class PostProcessing:
             self.isSuccessCreateTable = True
     
     def insert_into_table(self, dataframe:pd.DataFrame) -> bool:
+
+        commands = {'РДinsertQuery':'''INSERT INTO [РД] ([Система], [Наименование], [Код], 
+                                                                    [Тип], [Пакет], [Шифр], 
+                                                                    [Итог_статус], [Ревизия], [Рев_статус], 
+                                                                    [Дата_план], [Дата_граф], [Рев_дата], 
+                                                                    [Дата_ожид], [Письмо], [Источник], 
+                                                                    [Разработчик], [Объект], [WBS], 
+                                                                    [КС], [Примечания])''',
+
+                'ДокументацияinsertQuery':'''INSERT INTO [Документация] ([Система], [Наименование],
+                                                    [Шифр], [Разработчик],
+                                                    [Вид], [Тип],
+                                                    [Статус], [Ревизия], 
+                                                    [Дополнения], [Срок],
+                                                    [Сервер], [Обоснование])'''}
+
         PostProcessing.postLogger.info('  Trying to insert new data into new table.')
         if self.isSuccessCreateTable and self.isSuccessDeleteTable:
             try:
                 with pyodbc.connect(self.connStr) as connection:
                     cursor = connection.cursor()
                     for row in dataframe.itertuples(index=False):
-                        insertQuery = columns.Commands().commands[f'{self.databaseName}InsertQuery']
+                        insertQuery = commands[f'{self.databaseName}insertQuery']+ f'''VALUES ({",".join(f"'{x}'" for x in row)})'''
                         cursor.execute(insertQuery)
                     cursor.commit()
             except Exception as e:
@@ -134,9 +184,9 @@ class ResultFiles:
     resultFileLogger = logger.bind(name = 'resultFileLogger').opt(colors = True)
     resultFileLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
-    def __init__(self):
-        self.outputLogLileName = 'log-RD-' + str(datetime.now().isoformat(timespec='minutes')).replace(':', '_')
-        self.outputResultFileName = 'result' + str(datetime.now().isoformat(timespec='minutes')).replace(':', '_')
+    def __init__(self, databaseName):
+        self.outputLogLileName = f'log-{databaseName}-' + str(datetime.now().isoformat(timespec='minutes')).replace(':', '_')
+        self.outputResultFileName = f'result-{databaseName}-' + str(datetime.now().isoformat(timespec='minutes')).replace(':', '_')
     
     def to_logfile(self, dataframe:pd.DataFrame, header:str) -> None:
         ResultFiles.resultFileLogger.info('  Trying to write data to log-file.')

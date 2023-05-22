@@ -82,13 +82,13 @@ class Functions:
 
     class Documentation:
 
-        def prepare_missed_rows(docDf:pd.DataFrame, rdDf:pd.DataFrame) -> pd.DataFrame:
+        def prepare_missed_rows(self, docDf:pd.DataFrame, rdDf:pd.DataFrame) -> pd.DataFrame:
 
             logger.remove()
             missedRowsLogger = logger.bind(name = 'missed_rows_logger').opt(colors = True)
-            missedRowsLogger.add(sink = sys.stdout, format =  "<blue> {time:HH:mm:ss} </blue> | {message}", level = "INFO", colorize = True)
+            missedRowsLogger.add(sink = sys.stdout, format =  "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
-            missedRowsLogger.info("Finding information with missing data")
+            missedRowsLogger.info("  Finding information with missing data")
             cipherDf = pd.merge(docDf, rdDf,
                                     how = 'outer',
                                     on = 'Шифр',
@@ -109,16 +109,16 @@ class Functions:
             missedRows = missedRows.loc[missedRows['Система_new'].isin(list(set(docDf['Система'])))]
             missedRows = missedRows.dropna(subset = ['Система_new'])
             missedRows.columns = columns.Documentation.missedColumnsNew
-            missedRowsLogger.info('Missing value search finished')
+            missedRowsLogger.info('  Missing value search finished')
             return missedRows
 
-        def prepare_data_for_logfile(cipherDf:pd.DataFrame, cipherCodeDf:pd.DataFrame) -> pd.DataFrame:
+        def prepare_data_for_logfile(self, cipherDf:pd.DataFrame, cipherCodeDf:pd.DataFrame) -> pd.DataFrame:
 
             logger.remove()
             logFileLogger = logger.bind(name = 'log_file_logger').opt(colors = True)
-            logFileLogger.add(sink = sys.stdout, format =  "<red> {time:HH:mm:ss} </red> | {message}", level = "DEBUG")
+            logFileLogger.add(sink = sys.stdout, format =  "<green> {time:HH:mm:ss} </green> | {message}", level = "DEBUG")
             
-            logFileLogger.info('Preparing data for log-file')
+            logFileLogger.info('  Preparing data for log-file')
 
             def change_type_new(df:pd.DataFrame) -> str:
                 if pd.isna(df['Тип'])  and ~pd.isna(df['Тип_new']):
@@ -172,7 +172,7 @@ class Functions:
             logDf = pd.concat([cipherDf[list(columns.Documentation.logFileColumns)], cipherCodeDf[list(columns.Documentation.logFileColumns)]])
             logDf = logDf.reset_index()[list(columns.Documentation.logFileColumns)]
 
-            logFileLogger.info('Log-file ready')
+            logFileLogger.info('  Log-file ready')
             return logDf
 
 
@@ -211,7 +211,7 @@ class Functions:
 
     class Status:
 
-        def get_status_server(df:pd.DataFrame) -> str:
+        def get_status_server(self, df:pd.DataFrame) -> str:
             if df['_merge'] == 'both':
                 return 'Выложен'
             else:
