@@ -17,8 +17,8 @@ warnings.simplefilter(action='ignore', category=(FutureWarning, UserWarning))
 databaseRoot = askopenfilename(title='Select database', filetypes=[('*.mdb', '*.accdb')]).replace('/', '\\')
 excelRoot = askopenfilename(title="Select file for compare", filetypes=[("Excel Files", "*.xlsx"), ("Excel Binary Workbook", "*.xlsb")])
 
-isSuccessUpdatedRD = True
-isSuccessUpdatedDocumentation = True
+isSuccessUpdatedRD = False
+isSuccessUpdatedDocumentation = False
 isSuccessUpdatedStatus = False
 
 class RD:
@@ -72,7 +72,7 @@ class RD:
         excelDbJE = self.excelDatabase.copy()
         excelDbJE = excelDbJE[excelDbJE['Коды работ по выпуску РД'].str.contains('\.J\.|\.E\.')].reset_index()[['Коды работ по выпуску РД']]
         excelDbJE = excelDbJE.apply(lambda df: self.functions.missed_codes_excel(df, msDbJE), axis = 1)
-        # self.result.to_logfile(excelDbJE.dropna().reset_index(drop = True), 'Пропущенные значения, которые есть в отчете, но нет в РД (J, E)')
+        self.result.to_logfile(excelDbJE.dropna().reset_index(drop = True), 'Пропущенные значения, которые есть в отчете, но нет в РД (J, E)')
     
     @staticmethod
     def _mergingTwoDataFrames(self) -> None:
@@ -92,6 +92,8 @@ class RD:
                                 indicator=True))
         self.rdKksDf['Статус текущей ревизии_new'] = self.rdKksDf.apply(self.functions.changing_status, axis = 1)
         self.rdNameDf['Статус текущей ревизии_new'] = self.rdNameDf.apply(self.functions.changing_status, axis = 1)
+        self.emptyDf = self.rdNameDf[self.rdNameDf['_merge'] == 'left_only'][self.columns.new_columns]
+        
     
     @staticmethod
     def _findingMissedRows(self) -> None:
@@ -101,7 +103,7 @@ class RD:
         missedJE = missedRows[missedRows['Коды работ по выпуску РД'].str.contains('\.J\.|\.E\.')].reset_index()[['Коды работ по выпуску РД', 'Наименование объекта/комплекта РД']]
         missedJE = missedJE.apply(lambda df: self.functions.missed_codes(df, self.excelDatabase), axis = 1)
         missedJE = missedJE.dropna().reset_index(drop = True)
-        # RD.result.to_logfile(missedJE, 'Пропущенные значения, которые есть в РД, но нет в отчете (J, E)')
+        self.result.to_logfile(missedJE, 'Пропущенные значения, которые есть в РД, но нет в отчете (J, E)')
     
     @staticmethod
     def _changingDataframes(self) -> None:
@@ -136,6 +138,7 @@ class RD:
     def _preparingFinalFiles(self) -> pd.DataFrame:
         RD.loggerRD.info('  Preparing the final files.')
         summaryDf = pd.concat([self.rdKksDf, self.rdNameDf])
+        summaryDf = pd.concat([summaryDf, self.emptyDf])
         summaryDf = summaryDf[self.columns.base_columns]
         summaryDf = summaryDf.reset_index(drop = True)
         resultExcelDf = summaryDf.copy()
@@ -152,12 +155,12 @@ class RD:
     @staticmethod
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         RD.loggerRD.info('  Making changes to the database.')
+        global isSuccessUpdatedRD
         step = PostProcessing(databaseRoot, self.databaseName)
-        # step.delete_table()
-        # step.create_table()
-        # if step.insert_into_table(summaryDf):
-        #     isSuccessUpdatedRD = True
-
+        step.delete_table()
+        step.create_table()
+        if step.insert_into_table(summaryDf):
+            isSuccessUpdatedRD = True
 
 class Documentation:
     
@@ -265,11 +268,12 @@ class Documentation:
     @staticmethod
     def _makingChangedToDatabase(self, summaryDf:pd.DataFrame) -> None:
         Documentation.StatusLogger.info('  Making changes to the database.')
+        global isSuccessUpdatedDocumentation
         attempt = PostProcessing(databaseRoot, self.databaseName)
-        # attempt.delete_table()
-        # attempt.create_table()
-        # if attempt.insert_into_table(summaryDf):
-        #     isSuccessUpdatedDocumentation = True
+        attempt.delete_table()
+        attempt.create_table()
+        if attempt.insert_into_table(summaryDf):
+            isSuccessUpdatedDocumentation = True
 
 
 class Status:
@@ -322,6 +326,7 @@ class Status:
     @staticmethod
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         Status.StatusLogger.info('  Making changes to the database.')
+        global isSuccessUpdatedStatus
         attempt = PostProcessing(databaseRoot, self.databaseName)
         attempt.delete_table()
         attempt.create_table()
