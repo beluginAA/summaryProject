@@ -58,9 +58,9 @@ class RD:
         self.excelDatabase['WBS'] = self.excelDatabase['WBS'].apply(self.functions.changing_wbs)
         self.excelDatabase['Код KKS документа'] = self.excelDatabase['Код KKS документа'].astype(str)
         self.excelDatabase = self.excelDatabase.loc[~self.excelDatabase['Код KKS документа'].str.contains('\.KZ\.|\.EK\.|\.TZ\.|\.KM\.|\.GR\.')]
-        for column in self.columns.convert_columns[:4]:
-            self.excelDatabase[column] = self.excelDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
-            self.msDatabase[column] = self.msDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
+        # for column in self.columns.convert_columns[:4]:
+        #     self.excelDatabase[column] = self.excelDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
+        #     self.msDatabase[column] = self.msDatabase[column].apply(lambda row: '' if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
 
     @staticmethod
     def _findingMissingValues(self) -> None:
@@ -155,12 +155,12 @@ class RD:
     @staticmethod
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         RD.loggerRD.info('  Making changes to the database.')
-        global isSuccessUpdatedRD
-        step = PostProcessing(databaseRoot, self.databaseName)
-        step.delete_table()
-        step.create_table()
-        if step.insert_into_table(summaryDf):
-            isSuccessUpdatedRD = True
+        # global isSuccessUpdatedRD
+        # step = PostProcessing(databaseRoot, self.databaseName)
+        # step.delete_table()
+        # step.create_table()
+        # if step.insert_into_table(summaryDf):
+        #     isSuccessUpdatedRD = True
 
 class Documentation:
     
@@ -172,7 +172,7 @@ class Documentation:
         Documentation.StatusLogger.info('Working on Documentation.')
         self.databaseName = 'Документация'
         connect = Preproccessing(databaseRoot, excelRoot)
-        self.rdDatabase, self.docDatabase = connect.to_database('РД', self.databaseName, True)
+        self.rdDatabase, self.docDatabase = connect.to_database('РД', self.databaseName, True, True)
         self.functions = Functions.Documentation()
         self.result = ResultFiles(self.databaseName)
         self.columns = columns.Documentation()
@@ -198,7 +198,8 @@ class Documentation:
         for col in self.columns.doc_columns:
             self.docDatabase[col] = self.docDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
         self.rdDatabase['Ревизия'] = self.rdDatabase['Ревизия'].apply(lambda row: None if row == '' else row)
-        self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if row in ['в производстве', 'В производстве', None] else datetime.strptime(row, '%d.%m.%Y').date().strftime('%d-%m-%Y'))
+        # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if row in ['в производстве', 'В производстве', None] else datetime.strptime(row, '%d.%m.%Y').date().strftime('%d-%m-%Y'))
+        # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
         self.empty_rows_df = self.docDatabase[(pd.isna(self.docDatabase['Шифр'])) | (self.docDatabase['Вид'] != 'Проектная документация') | (self.docDatabase['Разработчик'] != 'Атомэнергопроект')]
         self.docDatabase = self.docDatabase[(~pd.isna(self.docDatabase['Шифр'])) & (self.docDatabase['Вид'] == 'Проектная документация') & (self.docDatabase['Разработчик'] == 'Атомэнергопроект')]
 

@@ -24,7 +24,27 @@ class Preproccessing:
                 )
         self.excelRoot = excelRoot
 
-    def to_database(self, firstdatabase:str, secondDatabase:str = '', moreThanOneTables:bool = False) -> pd.DataFrame :
+    @staticmethod
+    def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False) -> str:
+        if df[rightcColumn] in ['в производстве', 'В производстве', None] and not excelFile:
+            return ''
+        elif excelFile:
+            if isinstance(df[rightcColumn], (float, str)):
+                return df[rightcColumn]
+            else:
+                df[rightcColumn] = df[rightcColumn].date().strftime('%d.%m.%Y')
+        try:
+            datetime.strptime(df[rightcColumn], '%d.%m.%Y').date().strftime('%d-%m-%Y')
+        except ValueError:
+            missedValue = f"{df['Наименование объекта/комплекта РД']} | {df['Коды работ по выпуску РД']} | {df[rightcColumn]}"
+            with open('mistakes.txt', encoding = 'utf-8', mode = 'a') as file:
+                file.write(missedValue)
+                file.write('\n')
+            return ''
+        else:
+            return df[rightcColumn]
+
+    def to_database(self, firstdatabase:str, secondDatabase:str = '', moreThanOneTables:bool = False, firstTry:bool= False) -> pd.DataFrame :
         Preproccessing.preLogger.info('  Trying to get the data from database.')
         try:
             with pyodbc.connect(self.connStr) as cnxn:
@@ -33,7 +53,11 @@ class Preproccessing:
                     docDatabaseQuery = f'''SELECT * FROM [{secondDatabase}]'''
                     rdDatabase = pd.read_sql(rdDatabaseQuery, cnxn)
                     docDatabase = pd.read_sql(docDatabaseQuery, cnxn)
+                    if firstTry:
+                        docDatabase[column] = docDatabase.apply(self._prepareDateAndTime, rightcColumn = 'Срок', axis = 1)
                 else:
+                    if firstTry:
+                        self._prepareDateAndTime()
                     query = f'SELECT * FROM [{firstdatabase}]'
                     msDatabase = pd.read_sql(query, cnxn)
         except Exception as e:
@@ -44,6 +68,8 @@ class Preproccessing:
                 return rdDatabase, docDatabase
             else:
                 msDatabase.columns = columns.RD().base_columns
+                for column in columns.RD().convert_columns[:4]:
+                    msDatabase[column] = msDatabase.apply(self._prepareDateAndTime, rightcColumn = column, axis = 1)
                 return msDatabase
     
     
@@ -64,6 +90,8 @@ class Preproccessing:
             Preproccessing.preLogger.error(f"An error occurred while retrieving data from Excel: {e}")
         else:
             Preproccessing.preLogger.info('  Data from excel received successfully.')
+            for column in columns.RD().convert_columns[:4]:
+                excelDatabase[column] = excelDatabase.apply(self._prepareDateAndTime, rightcColumn = column, excelFile = True, axis = 1)
             return excelDatabase
         
 
