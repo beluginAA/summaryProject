@@ -155,12 +155,12 @@ class RD:
     @staticmethod
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         RD.loggerRD.info('  Making changes to the database.')
-        # global isSuccessUpdatedRD
-        # step = PostProcessing(databaseRoot, self.databaseName)
-        # step.delete_table()
-        # step.create_table()
-        # if step.insert_into_table(summaryDf):
-        #     isSuccessUpdatedRD = True
+        global isSuccessUpdatedRD
+        step = PostProcessing(databaseRoot, self.databaseName)
+        step.delete_table()
+        step.create_table()
+        if step.insert_into_table(summaryDf):
+            isSuccessUpdatedRD = True
 
 class Documentation:
     
@@ -284,7 +284,7 @@ class Status:
     StatusLogger.add(sink = sys.stdout, format = "<green> {time:HH:mm:ss} </green> | {message}", level = "INFO", colorize = True)
 
     def __init__(self):
-        Status.StatusLogger.info('Working on Documentation.')
+        Status.StatusLogger.info('Working on Status.')
         self.databaseName = 'Документация'
         connect = Preproccessing(databaseRoot, excelRoot)
         self.statusDf, self.docDf = connect.to_database('Переданные_РД', self.databaseName, True)

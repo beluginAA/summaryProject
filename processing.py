@@ -25,18 +25,25 @@ class Preproccessing:
         self.excelRoot = excelRoot
 
     @staticmethod
-    def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False) -> str:
+    def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False, header:str = 'Database') -> str:
         if df[rightcColumn] in ['в производстве', 'В производстве', None] and not excelFile:
             return ''
         elif excelFile:
             if isinstance(df[rightcColumn], (float, str)):
-                return df[rightcColumn]
+                if '.' in str(df[rightcColumn]):
+                    df[rightcColumn] = str(df[rightcColumn])
+                    header = 'Excel'
+                else:
+                    return df[rightcColumn]
             else:
                 df[rightcColumn] = df[rightcColumn].date().strftime('%d.%m.%Y')
         try:
             datetime.strptime(df[rightcColumn], '%d.%m.%Y').date().strftime('%d-%m-%Y')
         except ValueError:
-            missedValue = f"{df['Наименование объекта/комплекта РД']} | {df['Коды работ по выпуску РД']} | {df[rightcColumn]}"
+            if header == 'Excel':
+                missedValue = f"{header} | {df['Наименование объекта/комплекта РД']} | {df['Коды работ по выпуску РД']} | {df[rightcColumn]}"
+            else:
+                missedValue = f"{header} | {df['Наименование']} | {df['Шифр']} | {df[rightcColumn]}"
             with open('mistakes.txt', encoding = 'utf-8', mode = 'a') as file:
                 file.write(missedValue)
                 file.write('\n')
@@ -54,22 +61,21 @@ class Preproccessing:
                     rdDatabase = pd.read_sql(rdDatabaseQuery, cnxn)
                     docDatabase = pd.read_sql(docDatabaseQuery, cnxn)
                     if firstTry:
-                        docDatabase[column] = docDatabase.apply(self._prepareDateAndTime, rightcColumn = 'Срок', axis = 1)
+                        docDatabase['Срок'] = docDatabase.apply(self._prepareDateAndTime, rightcColumn = 'Срок', axis = 1)
                 else:
-                    if firstTry:
-                        self._prepareDateAndTime()
                     query = f'SELECT * FROM [{firstdatabase}]'
                     msDatabase = pd.read_sql(query, cnxn)
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while reading the data: {e}")
         else:
-            Preproccessing.preLogger.info('  Data from database received successfully.')
             if moreThanOneTables:
                 return rdDatabase, docDatabase
             else:
                 msDatabase.columns = columns.RD().base_columns
                 for column in columns.RD().convert_columns[:4]:
                     msDatabase[column] = msDatabase.apply(self._prepareDateAndTime, rightcColumn = column, axis = 1)
+                
+                Preproccessing.preLogger.info('  Data from database received successfully.')
                 return msDatabase
     
     
@@ -89,9 +95,10 @@ class Preproccessing:
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while retrieving data from Excel: {e}")
         else:
-            Preproccessing.preLogger.info('  Data from excel received successfully.')
             for column in columns.RD().convert_columns[:4]:
                 excelDatabase[column] = excelDatabase.apply(self._prepareDateAndTime, rightcColumn = column, excelFile = True, axis = 1)
+
+            Preproccessing.preLogger.info('  Data from excel received successfully.')
             return excelDatabase
         
 
