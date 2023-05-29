@@ -193,11 +193,13 @@ class Documentation:
     def _clearingDataframes(self) -> None:
         Documentation.StatusLogger.info('  Clearing dataframes.')
         self.rdDatabase = self.rdDatabase[list(self.columns.rdColumns)]
+        copyrdDatabase = self.rdDatabase.copy()
         for col in self.columns.rdColumns:
-            self.rdDatabase[col] = self.rdDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
+            copyrdDatabase[col] = copyrdDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
         for col in self.columns.doc_columns:
             self.docDatabase[col] = self.docDatabase.apply(lambda df: self.functions.finding_empty_rows(df, col), axis = 1)
-        self.rdDatabase['Ревизия'] = self.rdDatabase['Ревизия'].apply(lambda row: None if row == '' else row)
+        copyrdDatabase['Ревизия'] = copyrdDatabase['Ревизия'].apply(lambda row: None if row == '' else row)
+        self.rdDatabase = copyrdDatabase.copy()
         # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if row in ['в производстве', 'В производстве', None] else datetime.strptime(row, '%d.%m.%Y').date().strftime('%d-%m-%Y'))
         # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
         self.empty_rows_df = self.docDatabase[(pd.isna(self.docDatabase['Шифр'])) | (self.docDatabase['Вид'] != 'Проектная документация') | (self.docDatabase['Разработчик'] != 'Атомэнергопроект')]
