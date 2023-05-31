@@ -156,10 +156,11 @@ class RD:
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         RD.loggerRD.info('  Making changes to the database.')
         global isSuccessUpdatedRD
-        step = PostProcessing(databaseRoot, self.databaseName)
-        step.delete_table()
-        step.create_table()
-        if step.insert_into_table(summaryDf):
+        attempt = PostProcessing(databaseRoot, self.databaseName)
+        attempt.delete_table()
+        maxLenName = len(max(summaryDf['Наименование объекта/комплекта РД'], key = len))
+        attempt.create_table(maxLenName)
+        if attempt.insert_into_table(summaryDf):
             isSuccessUpdatedRD = True
 
 class Documentation:
@@ -274,7 +275,8 @@ class Documentation:
         global isSuccessUpdatedDocumentation
         attempt = PostProcessing(databaseRoot, self.databaseName)
         attempt.delete_table()
-        attempt.create_table()
+        maxLenName = len(max(summaryDf['Наименование'], key = len))
+        attempt.create_table(maxLenName)
         if attempt.insert_into_table(summaryDf):
             isSuccessUpdatedDocumentation = True
 
@@ -332,7 +334,8 @@ class Status:
         global isSuccessUpdatedStatus
         attempt = PostProcessing(databaseRoot, self.databaseName)
         attempt.delete_table()
-        attempt.create_table()
+        maxLenName = len(max(summaryDf['Наименование'], key = len))
+        attempt.create_table(maxLenName)
         if attempt.insert_into_table(summaryDf):
             isSuccessUpdatedStatus = True
 

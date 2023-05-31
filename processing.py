@@ -26,9 +26,24 @@ class Preproccessing:
 
     @staticmethod
     def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False, header:str = 'Database') -> str:
-        if df[rightcColumn] in ['в производстве', 'В производстве', None] and not excelFile:
-            return ''
-        elif excelFile:
+        
+        def tryExceptions(format:str) -> str:
+            nonlocal df, rightcColumn, header
+            if format == '%d.%m.%Y':
+                missedValueHeader = f"{header} | {df['Наименование объекта/комплекта РД']} | {df['Коды работ по выпуску РД']} | {df[rightcColumn]}"
+            else:
+                missedValueHeader = f"{header} | {df['Наименование']} | {df['Шифр']} | {df[rightcColumn]}"
+            try:
+                datetime.strptime(df[rightcColumn], format).date().strftime('%d-%m-%Y')
+            except ValueError:
+                with open('mistakes.txt', encoding = 'utf-8', mode = 'a') as file:
+                    file.write(missedValueHeader)
+                    file.write('\n')
+                return ''
+            else:
+                return df[rightcColumn]
+
+        if excelFile:
             if isinstance(df[rightcColumn], (float, str)):
                 if '.' in str(df[rightcColumn]):
                     df[rightcColumn] = str(df[rightcColumn])
@@ -37,19 +52,12 @@ class Preproccessing:
                     return df[rightcColumn]
             else:
                 df[rightcColumn] = df[rightcColumn].date().strftime('%d.%m.%Y')
-        try:
-            datetime.strptime(df[rightcColumn], '%d.%m.%Y').date().strftime('%d-%m-%Y')
-        except ValueError:
-            if header == 'Excel':
-                missedValue = f"{header} | {df['Наименование объекта/комплекта РД']} | {df['Коды работ по выпуску РД']} | {df[rightcColumn]}"
-            else:
-                missedValue = f"{header} | {df['Наименование']} | {df['Шифр']} | {df[rightcColumn]}"
-            with open('mistakes.txt', encoding = 'utf-8', mode = 'a') as file:
-                file.write(missedValue)
-                file.write('\n')
-            return ''
+            return tryExceptions('%d.%m.%Y')
         else:
-            return df[rightcColumn]
+            if df[rightcColumn] in ['в производстве', 'В производстве', None, '']:
+                return ''
+            return tryExceptions('%Y-%m-%d')
+
 
     def to_database(self, firstdatabase:str, secondDatabase:str = '', moreThanOneTables:bool = False, firstTry:bool= False) -> pd.DataFrame :
         Preproccessing.preLogger.info('  Trying to get the data from database.')
@@ -70,13 +78,12 @@ class Preproccessing:
         else:
             if moreThanOneTables:
                 return rdDatabase, docDatabase
-            else:
-                msDatabase.columns = columns.RD().base_columns
-                for column in columns.RD().convert_columns[:4]:
-                    msDatabase[column] = msDatabase.apply(self._prepareDateAndTime, rightcColumn = column, axis = 1)
-                
-                Preproccessing.preLogger.info('  Data from database received successfully.')
-                return msDatabase
+            for column in msDatabase.columns[9:13]:
+                msDatabase[column] = msDatabase.apply(self._prepareDateAndTime, rightcColumn = column, axis = 1)
+            msDatabase.columns = columns.RD().base_columns
+            
+            Preproccessing.preLogger.info('  Data from database received successfully.')
+            return msDatabase
     
     
     def to_excel(self) -> pd.DataFrame:
@@ -131,10 +138,10 @@ class PostProcessing:
             PostProcessing.postLogger.info(f'  An old table {self.databaseName} has been successfully deleted.')
             self.isSuccessDeleteTable = True
     
-    def create_table(self) -> None:
+    def create_table(self, maxNameLen:int) -> None:
 
-        commands = {'РДCreateQuery':'''CREATE TABLE [РД] ([Система] VARCHAR(200), 
-                                [Наименование] VARCHAR(200),
+        commands = {'РДCreateQuery':f'''CREATE TABLE [РД] ([Система] VARCHAR(200), 
+                                [Наименование] VARCHAR({maxNameLen}),
                                 [Код] VARCHAR(200),
                                 [Тип] VARCHAR(200),
                                 [Пакет] VARCHAR(200),
@@ -153,8 +160,8 @@ class PostProcessing:
                                 [WBS] VARCHAR(200), 
                                 [КС] VARCHAR(200), 
                                 [Примечания] VARCHAR(200))''',
-        'ДокументацияCreateQuery':'''CREATE TABLE [Документация] ([Система] VARCHAR(200), 
-                                            [Наименование] VARCHAR(200),
+        'ДокументацияCreateQuery':f'''CREATE TABLE [Документация] ([Система] VARCHAR(200), 
+                                            [Наименование] VARCHAR({maxNameLen}),
                                             [Шифр] VARCHAR(100),
                                             [Разработчик] VARCHAR(200),
                                             [Вид] VARCHAR(100),
