@@ -112,7 +112,7 @@ class Functions:
             missedRowsLogger.info('  Missing value search finished')
             return missedRows
 
-        def prepare_data_for_logfile(self, cipherDf:pd.DataFrame, cipherCodeDf:pd.DataFrame) -> pd.DataFrame:
+        def prepare_data_for_logfile(self, cipDf:pd.DataFrame, cipherCodeDf:pd.DataFrame) -> pd.DataFrame:
 
             logger.remove()
             logFileLogger = logger.bind(name = 'log_file_logger').opt(colors = True)
@@ -157,19 +157,19 @@ class Functions:
                 else:
                     return '-'
 
-            cipherDf['Тип'] = cipherDf.apply(change_type_new, axis = 1)
+            cipDf['Тип'] = cipDf.apply(change_type_new, axis = 1)
             cipherCodeDf['Тип'] = cipherCodeDf.apply(change_type_new, axis = 1)
-            cipherDf['Итог_статус'] = cipherDf.apply(change_status_new, axis = 1)
+            cipDf['Итог_статус'] = cipDf.apply(change_status_new, axis = 1)
             cipherCodeDf['Итог_статус'] = cipherCodeDf.apply(change_status_new, axis = 1)
 
             for column in columns.Documentation.changedColumns:
                 if 'Код' not in column:
-                    cipherDf[column[0]] = cipherDf.apply(lambda row: change_columns(row, column), axis=1)
+                    cipDf[column[0]] = cipDf.apply(lambda row: change_columns(row, column), axis=1)
                     cipherCodeDf[column[0]] = cipherCodeDf.apply(lambda row: change_columns(row, column), axis=1)
                 else:
-                    cipherDf['Шифр'] = '-'
+                    cipDf['Шифр'] = '-'
                     cipherCodeDf['Шифр'] = cipherCodeDf.apply(lambda row: change_code_new(row, column), axis = 1)
-            logDf = pd.concat([cipherDf[list(columns.Documentation.logFileColumns)], cipherCodeDf[list(columns.Documentation.logFileColumns)]])
+            logDf = pd.concat([cipDf[list(columns.Documentation.logFileColumns)], cipherCodeDf[list(columns.Documentation.logFileColumns)]])
             logDf = logDf.reset_index()[list(columns.Documentation.logFileColumns)]
 
             logFileLogger.info('  Log-file ready')
@@ -183,7 +183,7 @@ class Functions:
                 return df['Код']
         
         def finding_empty_rows(self, df:pd.DataFrame, column:str) -> str:
-            if df[column] in ['nan', 'None', '0'] or pd.isna(df[column]):
+            if df[column] in ['nan', 'None', '0', None] or pd.isna(df[column]):
                 return None
             else:
                 return df[column]
