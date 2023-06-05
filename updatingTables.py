@@ -203,9 +203,9 @@ class Documentation:
         self.rdDatabase = copyrdDatabase.copy()
         # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if row in ['в производстве', 'В производстве', None] else datetime.strptime(row, '%d.%m.%Y').date().strftime('%d-%m-%Y'))
         # self.docDatabase['Срок'] = self.docDatabase['Срок'].apply(lambda row: row if not isinstance(row, datetime) else row.strftime('%d-%m-%Y'))
-        self.empty_rows_df = self.docDatabase[(pd.isna(self.docDatabase['Шифр'])) | (self.docDatabase['Вид'] != 'Проектная документация') | (self.docDatabase['Разработчик'] != 'Атомэнергопроект')]
-        self.docDatabase = self.docDatabase[(~pd.isna(self.docDatabase['Шифр'])) & (self.docDatabase['Вид'] == 'Проектная документация') & (self.docDatabase['Разработчик'] == 'Атомэнергопроект')]
-
+        self.empty_rows_df = self.docDatabase[(self.docDatabase['Шифр']=='') | (self.docDatabase['Вид'] != 'Проектная документация') | (self.docDatabase['Разработчик'] != 'Атомэнергопроект')]
+        self.docDatabase = self.docDatabase[(self.docDatabase['Шифр']!='') & (self.docDatabase['Вид'] == 'Проектная документация') & (self.docDatabase['Разработчик'] == 'Атомэнергопроект')]
+    
     @staticmethod
     def _makingCopyOfOriginalDataframes(self):
         Documentation.StatusLogger.info('  Making copy of original dataframes.')
@@ -222,6 +222,7 @@ class Documentation:
                                 on = 'Шифр',
                                 suffixes=['', '_new'],
                                 indicator = True)
+        self.cipherDf.drop_duplicates(['Система','Шифр', 'Наименование_new'], inplace = True)
         leftOnly = self.cipherDf[self.cipherDf['_merge'] == 'left_only'][self.docDatabase.columns]
         self.cipherCodeDf = pd.merge(leftOnly, self.rdDatabase,
                             how = 'left',
@@ -332,6 +333,7 @@ class Status:
     def _makingChangesToDatabase(self, summaryDf:pd.DataFrame) -> None:
         Status.StatusLogger.info('  Making changes to the database.')
         global isSuccessUpdatedStatus
+        summaryDf.drop_duplicates()
         attempt = PostProcessing(databaseRoot, self.databaseName)
         attempt.delete_table()
         maxLenName = len(max(summaryDf['Наименование'], key = len))
