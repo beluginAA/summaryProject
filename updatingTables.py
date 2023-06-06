@@ -235,6 +235,7 @@ class Documentation:
     def _makingCopyOfAlreadyJoinedDataframes(self) -> None:
         Documentation.StatusLogger.info('  Making copies of already joined dataframes.')
         self.cipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
+        self.cipherDfCopy = self.cipherDf.copy()
         cipherCodeDfCopy = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
         logDf = self.functions.prepare_data_for_logfile(self.cipherDf, cipherCodeDfCopy)
         self.result.to_logfile(logDf, 'Итоговые значения')
@@ -242,7 +243,7 @@ class Documentation:
     @staticmethod
     def _preparingMergingDataframesForSummaryDataframe(self) -> None:
         Documentation.StatusLogger.info('  Preparing merging dataframes for summary dataframe.')
-        self.resultCipherDf = self.cipherDf[self.cipherDf['_merge'] == 'both'].copy()
+        self.resultCipherDf = self.cipherDfCopy[self.cipherDfCopy['_merge'] == 'both'].copy()
         self.resultCipherCodeDf = self.cipherCodeDf[self.cipherCodeDf['_merge'] == 'both'].copy()
         self.resultCipherDf['Тип'] = self.resultCipherDf.apply(self.functions.change_type, axis = 1)
         self.resultCipherCodeDf['Тип'] = self.resultCipherCodeDf.apply(self.functions.change_type, axis = 1)
