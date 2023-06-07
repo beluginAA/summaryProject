@@ -260,7 +260,7 @@ class ResultFiles:
         ResultFiles.resultFileLogger.info('  Trying to write the final data to an excel file.')
 
         comfRen = input('Use standard file name (y/n): ')
-        while comfRen not in 'YyNn' or comfRen=='':
+        while comfRen not in 'YyNn' or comfRen == '':
             comfRen = input('For next work choose <y> or <n> simbols): ')
         if comfRen in 'Nn':
             self.outputResultFileName = input('Input result file name: ')
