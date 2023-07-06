@@ -25,7 +25,7 @@ class Preproccessing:
         self.excelRoot = excelRoot
 
     @staticmethod
-    def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False, header:str = 'Database') -> str:
+    def _prepareDateAndTime(df:pd.DataFrame, rightcColumn:str, excelFile:bool = False, xlsbCondition = False, header:str = 'Database') -> str:
         
         def tryExceptions(format:str) -> str:
             nonlocal df, rightcColumn, header
@@ -41,9 +41,23 @@ class Preproccessing:
                     file.write('\n')
                 return ''
             else:
+                df[rightcColumn] = datetime.strptime(df[rightcColumn], format).date().strftime('%d-%m-%Y')
                 return df[rightcColumn]
 
         if excelFile:
+            if xlsbCondition:
+                if df[rightcColumn] == None or isinstance(df[rightcColumn], str):
+                    if '.' in str(df[rightcColumn]):
+                        return tryExceptions('%d.%m.%Y')
+                    else:
+                        return df[rightcColumn]
+                else:
+                    seconds = (df[rightcColumn] - 25569) * 86400.0
+                    df[rightcColumn] = datetime.utcfromtimestamp(seconds)
+                    df[rightcColumn] = df[rightcColumn].date().strftime('%d.%m.%Y')
+                    df[rightcColumn] = str(df[rightcColumn])
+                    return tryExceptions('%d.%m.%Y')
+                
             if isinstance(df[rightcColumn], (float, str)):
                 if '.' in str(df[rightcColumn]):
                     df[rightcColumn] = str(df[rightcColumn])
@@ -89,6 +103,7 @@ class Preproccessing:
     def to_excel(self) -> pd.DataFrame:
 
         Preproccessing.preLogger.info('  Trying to get the data from excel.')
+        isItXlsbFile = False
         try:
             if '.xlsb' in self.excelRoot:
                 with pyxlsb.open_workbook(self.excelRoot) as wb:
@@ -97,13 +112,14 @@ class Preproccessing:
                         for row in sheet.rows():
                             data.append([item.v for item in row])
                 excelDatabase = pd.DataFrame(data[1:], columns=data[0])
+                isItXlsbFile = True
             else: 
                 excelDatabase = pd.read_excel(self.excelRoot, engine='openpyxl')
         except Exception as e:
             Preproccessing.preLogger.error(f"An error occurred while retrieving data from Excel: {e}")
         else:
             for column in columns.RD().convert_columns[:4]:
-                excelDatabase[column] = excelDatabase.apply(self._prepareDateAndTime, rightcColumn = column, excelFile = True, axis = 1)
+                excelDatabase[column] = excelDatabase.apply(self._prepareDateAndTime, rightcColumn = column, excelFile = True, xlsbCondition =  isItXlsbFile, axis = 1)
 
             Preproccessing.preLogger.info('  Data from excel received successfully.')
             return excelDatabase

@@ -90,8 +90,8 @@ class RD:
                                 on=['Коды работ по выпуску РД', 'Наименование объекта/комплекта РД'],
                                 suffixes=['', '_new'],
                                 indicator=True))
-        self.rdKksDf['Статус текущей ревизии_new'] = self.rdKksDf.apply(self.functions.changing_status, axis = 1)
-        self.rdNameDf['Статус текущей ревизии_new'] = self.rdNameDf.apply(self.functions.changing_status, axis = 1)
+        self.rdKksDf['Статус текущей ревизии_new'] = self.rdKksDf.apply(self.functions.changing_status_for_kks, axis = 1)
+        self.rdNameDf['Статус текущей ревизии_new'] = self.rdNameDf.apply(self.functions.changing_status_for_name, axis = 1)
         self.emptyDf = self.rdNameDf[self.rdNameDf['_merge'] == 'left_only'][self.columns.new_columns]
         
     

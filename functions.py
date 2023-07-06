@@ -35,11 +35,17 @@ class Functions:
             else:
                 return df['Разработчики РД (актуальные)']
 
-        def changing_status(self, df:pd.DataFrame) -> str:
+        def changing_status_for_name(self, df:pd.DataFrame) -> str:
             if isinstance(df['Статус текущей ревизии_new'], float) or df['Статус текущей ревизии_new'] is None:
                 return df['Статус РД в 1С']
             else:
                 return df['Статус текущей ревизии_new']
+        
+        def changing_status_for_kks(self, df:pd.DataFrame) -> str:
+            if isinstance(df['Статус текущей ревизии'], float) or df['Статус текущей ревизии'] is None:
+                return df['Статус РД в 1С']
+            else:
+                return df['Статус текущей ревизии']
 
         def changing_data(self, df:pd.DataFrame, column:str) -> str:
             if isinstance(df[column], float) or df[column] is None:
